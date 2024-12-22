@@ -90,6 +90,8 @@ function App() {
   // Bước 1: Train máy khi không chạm tay
   const train = async (label) => {
     console.log(`${label} đang train face cho máy  `);
+    setButton1Visible(false);
+    setButton2Visible(false);
     for (let i = 0; i < TRAINING_TIMES; i++) {
       console.log(`Progress ${parseInt(((i + 1) / TRAINING_TIMES) * 100)}%`);
       setLoadingMessage(
