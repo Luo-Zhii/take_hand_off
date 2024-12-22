@@ -23,6 +23,13 @@ function App() {
   let canPlaySound = useRef(true);
 
   const [touched, setTouched] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState(true);
+  const [trainAI, setTrainAI] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [cameraReady, setCameraReady] = useState(false);
+  const [button1Visible, setButton1Visible] = useState(true);
+  const [button2Visible, setButton2Visible] = useState(false);
+  const [runVisible, setRunVisible] = useState(false);
   useEffect(() => {
     init();
     sound.on("end", function () {
@@ -33,9 +40,9 @@ function App() {
 
   const init = async () => {
     console.log("init...");
-
     await setUpCamera();
     console.log("setUp camera success");
+    setLoadingMessage("Đang khởi động AI...");
 
     classifierModule.current = knnClassifier.create();
     mobilenetModule.current = await mobilenet.load();
@@ -43,10 +50,14 @@ function App() {
     console.log("set up done");
     console.log("Dont touch face and press Train 1 ");
 
+    setCameraReady(true);
+    setLoadingMessage("");
+    setCameraPermission(true);
+
     initNotifications({ cooldown: 3000 });
   };
   //  HIển thị camera trên thiết bị
-  const setUpCamera = () => {
+  const setUpCamera = async () => {
     return new Promise((resolve, reject) => {
       navigator.getUserMedia =
         navigator.getUserMedia ||
@@ -57,14 +68,22 @@ function App() {
       if (navigator.getUserMedia) {
         navigator.getUserMedia(
           { video: true },
-          (stream) => {
+          async (stream) => {
             video.current.srcObject = stream;
-            video.current.addEventListener("loaddedata", resolve());
+            video.current.addEventListener("loadeddata", async () => {
+              resolve(); // Giải phóng Promise
+            });
           },
-          (error) => reject()
+          (error) => {
+            reject(error); // Nếu có lỗi thì reject Promise
+            setCameraPermission(false);
+            setLoadingMessage(""); // Ẩn thông báo lỗi
+          }
         );
       } else {
-        reject();
+        reject(new Error("Camera not supported")); // Nếu không có camera thì reject
+        setCameraPermission(false);
+        setLoadingMessage(""); // Ẩn thông báo lỗi
       }
     });
   };
@@ -73,8 +92,22 @@ function App() {
     console.log(`${label} đang train face cho máy  `);
     for (let i = 0; i < TRAINING_TIMES; i++) {
       console.log(`Progress ${parseInt(((i + 1) / TRAINING_TIMES) * 100)}%`);
+      setLoadingMessage(
+        `Training Progress: ${parseInt(((i + 1) / TRAINING_TIMES) * 100)}%`
+      );
       await training(label);
     }
+
+    if (label == NOT_TOUCH_MODULE) {
+      setButton1Visible(false);
+      setButton2Visible(true);
+    }
+    if (label === TOUCHED) {
+      setButton2Visible(false);
+      setRunVisible(true);
+    }
+    setTrainAI(true);
+    setLoadingMessage("");
   };
   const sleep = (ms) => {
     return new Promise((resolve) => {
@@ -83,6 +116,7 @@ function App() {
   };
   // Bước 2: Train máy khi chạm tay
   const training = (label) => {
+    setTrainAI(false);
     // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve) => {
       const embedding = mobilenetModule.current.infer(video.current, true);
@@ -106,29 +140,68 @@ function App() {
         canPlaySound.current = false;
         sound.play();
       }
+      setLoadingMessage("Bỏ tay ra ddeeee!!! ");
       notify("Bỏ tay ra", { body: "Bạn vừa chạm tay vào mặt!!!" });
       setTouched(true);
     } else {
       console.log("not_touched");
       setTouched(false);
+      setLoadingMessage("");
     }
     await sleep(1000);
     run();
   };
   return (
     <div className={`main ${touched ? "touched" : ""}`}>
+      <span className="title">
+        Web cảnh báo chạm tay (hoặc bất kì điều gì muốn đối chiếu){" "}
+      </span>
       <video ref={video} className="video" autoPlay />
-      <div className="control">
-        <button onClick={() => train(NOT_TOUCH_MODULE)} className="btn">
-          Train 1
-        </button>
-        <button onClick={() => train(TOUCHED)} className="btn">
-          Train 2
-        </button>
-        <button onClick={() => run()} className="btn">
-          Run
-        </button>
-      </div>
+      {!cameraPermission && (
+        <span className="camera_noti">
+          Vui lòng cấp quyền camera để tiếp tục sử dụng.
+        </span>
+      )}
+      {loadingMessage && (
+        <span className="loading-message">{loadingMessage}</span>
+      )}
+      {cameraReady && cameraPermission && (
+        <div className="control">
+          {button1Visible && (
+            <>
+              <span>
+                Bước 1: Train máy khi không chạm tay và cử động thoải mái nhất
+                để máy học cử chỉ
+              </span>
+              <br />
+              <button onClick={() => train(NOT_TOUCH_MODULE)} className="btn">
+                Train 1
+              </button>
+            </>
+          )}
+          {button2Visible && (
+            <>
+              <span>
+                Bước 2: Train máy khi chạm tay và cử động thoải mái nhất để máy
+                học cử chỉ
+              </span>
+              <br />
+              <button onClick={() => train(TOUCHED)} className="btn">
+                Train 2
+              </button>
+            </>
+          )}
+          {runVisible && (
+            <>
+              <span>Bước 3: Thành công rồi mặc dù nó vẫn nguu</span>
+              <br />
+              <button onClick={() => run()} className="btn">
+                Run
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
