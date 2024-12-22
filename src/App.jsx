@@ -161,7 +161,7 @@ function App() {
       <video ref={video} className="video" autoPlay />
       {!cameraPermission && (
         <span className="camera_noti">
-          Vui lòng cấp quyền camera để tiếp tục sử dụng.
+          Vui lòng cấp quyền camera và thông báo để tiếp tục sử dụng.
         </span>
       )}
       {loadingMessage && (
